@@ -1,0 +1,79 @@
+#pragma once
+
+#include <iostream>
+#include <vector>
+
+#include "tensorflow/core/public/session.h"
+#include "tensorflow/core/platform/env.h"
+
+namespace tf_model
+{
+	class FeatureAdapterBase
+	{
+	public:
+		FeatureAdapterBase() {};
+		virtual ~FeatureAdapterBase() {};
+
+		//////////////////////////////////////////////////////////////////////////
+		//Feature adapter: convert 1-D double vector to Tensor, shape [1, ndim]
+		//@param: std::string tname, tensor name
+		//@param: std::vector<double>* vec, input vector
+		//////////////////////////////////////////////////////////////////////////
+		virtual int vec2Tensor(const std::string& tname, std::vector<double>* vec);//tensor_name, tensor_double_vector
+
+		//////////////////////////////////////////////////////////////////////////
+		//Read data from image file and convert to Tensor
+		//@param: std::string fileName, image file path
+		//@param: const int inputHeight, input image height
+		//@param: const int inputWidth, input image width
+		//@param: const int channels, input image channels
+		//@param: const float intputSTD, input image standard deviation
+		//@param: const float inputMean, input image mean value
+		//@param: std::vector<Tensor*> outTensors, image tensor
+		//////////////////////////////////////////////////////////////////////////
+		virtual int readTensorFromImageFile(const std::string& fileName, const int inputHeight,
+			const int inputWidth, const int channels,
+			const float intputSTD, const float inputMean,
+			std::vector<tensorflow::Tensor>* outTensors);
+
+		//////////////////////////////////////////////////////////////////////////
+		//Takes a file name, and loads it as a Tensor
+		//@param: tensorflow::Env* env, tensorflow environment
+		//@param: const std::string& fileName, file name
+		//@param: ensorflow::Tensor* output, a Tensor
+		//////////////////////////////////////////////////////////////////////////
+		virtual int readEntireFile(tensorflow::Env* env, const std::string& fileName, tensorflow::Tensor* output);
+
+		//////////////////////////////////////////////////////////////////////////
+		//Takes a file name, and load a list of labels from it
+		//@param: const std::string& fileName, a file name
+		//@param: std::vector<std::string>* result, the labels stored in a vector
+		//it pads with empty strings so the length is a multiple of 16
+		//@param: std::size_t* foundLabelCount, the found label count
+		//////////////////////////////////////////////////////////////////////////
+		virtual int readLabelsFile(const std::string& fileName, std::vector<std::string>* result, std::size_t* foundLabelCount);
+
+	public:
+		std::vector<std::pair<std::string, tensorflow::Tensor>> inputs;
+	 };
+
+	class ModelLoaderBase
+	{
+	public:
+		ModelLoaderBase() {};
+		virtual ~ModelLoaderBase() {};
+
+		//////////////////////////////////////////////////////////////////////////
+		//Load graph file and new session
+		//@param std::unique_ptr<tensorflow::Session>* session, add the graph to the session
+		//@param std::string modelPath, absolute path to exported protobuf file *.pb
+		//////////////////////////////////////////////////////////////////////////
+		virtual int loadGraph(std::unique_ptr<tensorflow::Session>* session, const std::string& modelPath);
+
+		virtual int predict(std::unique_ptr<tensorflow::Session>* session, const FeatureAdapterBase& inputFeature,
+			const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs) = 0;
+
+	public:
+		tensorflow::GraphDef graphdef;
+	};
+}
