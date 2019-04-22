@@ -89,7 +89,8 @@ namespace tf_model
 
 	}
 
-	int DetectionModelLoader::predict(std::unique_ptr<tensorflow::Session>* session, const FeatureAdapterBase& inputFeature, const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs)
+	int DetectionModelLoader::predict(std::unique_ptr<tensorflow::Session>* session, std::string inputNode, const tensorflow::Tensor& input,
+		const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs)
 	{
 		return CYAL_SUCCESS;
 	}

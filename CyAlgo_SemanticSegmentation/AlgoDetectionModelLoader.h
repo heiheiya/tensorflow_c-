@@ -46,11 +46,12 @@ namespace tf_model
 		//////////////////////////////////////////////////////////////////////////
 		// Make new prediction
 		//@param std::unique_ptr<tensorflow::Session>* session, work session
-		//@param FeatureAdapterBase& inputFeature, common interface of input feature
+		//@param std::string inputNode, tensor name of input node
+		//@param tensorflow::Tensor& input, input tensor
 		//@param std::string outputNode, tensor name of output node
-		//@param double* prediction, prediction values
+		//@param std::vector<tensorflow::Tensor>& outputs, output tensor vector
 		//////////////////////////////////////////////////////////////////////////
-		int predict(std::unique_ptr<tensorflow::Session>* session, const FeatureAdapterBase& inputFeature,
+		int predict(std::unique_ptr<tensorflow::Session>* session, std::string inputNode, const tensorflow::Tensor& input,
 			const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs) override;
 
 

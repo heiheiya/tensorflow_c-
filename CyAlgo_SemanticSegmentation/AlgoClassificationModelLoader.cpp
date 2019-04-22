@@ -34,9 +34,12 @@ namespace tf_model
 	
 	}
 	
-	int ClassificationModelLoader::predict(std::unique_ptr<tensorflow::Session>* session, const FeatureAdapterBase& inputFeature, const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs)
+	int ClassificationModelLoader::predict(std::unique_ptr<tensorflow::Session>* session, std::string inputNode, const tensorflow::Tensor& input,
+		const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs)
 	{
-		tensorflow::Status status = (*session)->Run(inputFeature.inputs, { outputNode }, {}, &outputs);
+		inputFeat.inputs.clear();
+		inputFeat.inputs.push_back(std::pair<std::string, tensorflow::Tensor>(inputNode, input));
+		tensorflow::Status status = (*session)->Run(inputFeat.inputs, { outputNode }, {}, &outputs);
 		if (!status.ok())
 		{
 			std::cout << "ERROR: Session run failed..." << "(code:" << CYAL_TF_SESSION_RUN_ERROR << ")" << std::endl;
