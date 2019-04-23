@@ -17,16 +17,16 @@ namespace tf_model
 		//////////////////////////////////////////////////////////////////////////
 		//Convert a opencv Mat to tensorflow tensor
 		//@param: cv::Mat input, a input opencv Mat
-		//@param: tensorflow::Tensor& outputTensor, an output tensorflow tensor
+		//@param: float normal = 1 / 255.0, normalize OpenCV mat
 		//////////////////////////////////////////////////////////////////////////
-		void cvMat2tfTensor(cv::Mat input, tensorflow::Tensor& outputTensor);
+		tensorflow::Tensor cvMat2tfTensor(cv::Mat input, float normal = 1 / 255.0);
 
 		//////////////////////////////////////////////////////////////////////////
 		//Convert a tensorflow tensor to opencv Mat
 		//@param: tensorflow::Tensor& inputTensor, an input tensorflow tensor
 		//@param: cv::Mat output, a output opencv Mat
 		//////////////////////////////////////////////////////////////////////////
-		int tfTensor2cvMat(const tensorflow::Tensor& inputTensor, cv::Mat& output);
+		int tfTensor2cvMat(tensorflow::Tensor& inputTensor, cv::Mat& output);
 
 	private:
 		tensorflow::int32 inputWidth;

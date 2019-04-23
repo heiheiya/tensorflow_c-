@@ -93,6 +93,7 @@ namespace tf_model
 	
 		*scores = outTensors[0];
 		*indices = outTensors[1];
+		//std::cout << indices[0].matrix<tensorflow::int32>() << std::endl;
 	
 		return CYAL_SUCCESS;
 	}

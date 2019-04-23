@@ -143,13 +143,7 @@ int main()
 		std::cout << "ERROR: Predict failed..." << "(code:" << err << ")" << std::endl;
 		return err;
 	}
-	//tensorflow::Status status = session->Run({ {inputLayer, resizedTensor} }, { outputLayer }, {}, &outputs);
-	//if (!status.ok())
-	//{
-	//	std::cout << "ERROR: Session run failed..." << "(code:" << CYAL_TF_SESSION_RUN_ERROR << ")" << std::endl;
-	//	std::cout << status.ToString() << std::endl;
-	//	return CYAL_TF_SESSION_RUN_ERROR;
-	//}
+	std::cout << outputs[0].matrix<float>() << std::endl;
 
 	if (selfTest)
 	{
