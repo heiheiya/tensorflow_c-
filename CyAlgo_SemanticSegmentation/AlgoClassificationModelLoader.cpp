@@ -1,5 +1,4 @@
 #include <iostream>
-#include <vector>
 #include <map>
 #include <fstream>
 #include <algorithm>
@@ -21,6 +20,68 @@ namespace tf_model
 	ClassificationFeatureAdapter::~ClassificationFeatureAdapter()
 	{
 	
+	}
+
+	int ClassificationFeatureAdapter::printTopLabels(const std::vector<tensorflow::Tensor>& outputs, const std::string& labelsFileName)
+	{
+		std::vector<std::string> labels;
+		std::size_t labelCount;
+
+		int err = readLabelsFile(labelsFileName, &labels, &labelCount);
+		if (CYAL_SUCCESS != err)
+		{
+			std::cout << "ERROR: Read Labels from file failed..." << "(code:" << err << ")" << std::endl;
+			return err;
+		}
+
+		const int howManyLabels = std::min(5, static_cast<int>(labelCount));
+		tensorflow::Tensor indices;
+		tensorflow::Tensor scores;
+		err = getTopDetections(outputs, howManyLabels, &indices, &scores);
+		if (CYAL_SUCCESS != err)
+		{
+			std::cout << "ERROR: Get top labels failed..." << "(code:" << err << ")" << std::endl;
+			return err;
+		}
+
+		tensorflow::TTypes<float>::Flat scoresFlat = scores.flat<float>();
+		tensorflow::TTypes<tensorflow::int32>::Flat indicesFlat = indices.flat<tensorflow::int32>();
+		for (int pos = 0; pos < howManyLabels; ++pos)
+		{
+			const int labelIndex = indicesFlat(pos);
+			const float score = scoresFlat(pos);
+			std::cout << labels[labelIndex] << "( " << labelIndex << " ): " << score << std::endl;
+		}
+
+		return CYAL_SUCCESS;
+	}
+
+	int ClassificationFeatureAdapter::checkTopLabel(const std::vector<tensorflow::Tensor>& outputs, int expected, bool* isExpected)
+	{
+		*isExpected = false;
+		tensorflow::Tensor indices;
+		tensorflow::Tensor scores;
+		const int howManyLabels = 1;
+		int err = getTopDetections(outputs, howManyLabels, &indices, &scores);
+		if (CYAL_SUCCESS != err)
+		{
+			std::cout << "ERROR: Get top labels failed..." << "(code:" << CYAL_GET_TOP_LABELS_ERROR << ")" << std::endl;
+			return CYAL_GET_TOP_LABELS_ERROR;
+		}
+
+		tensorflow::TTypes<tensorflow::int32>::Flat indicesFlat = indices.flat<tensorflow::int32>();
+		if (indicesFlat(0) != expected)
+		{
+			std::cout << "ERROR: Expected label#" << expected << " but got #" << indicesFlat(0) << "(code:" << CYAL_CHECK_TOP_LABELS_ERROR << ")" << std::endl;
+			*isExpected = false;
+			return CYAL_CHECK_TOP_LABELS_ERROR;
+		}
+		else
+		{
+			*isExpected = true;
+		}
+
+		return CYAL_SUCCESS;
 	}
 	
 	
@@ -53,109 +114,6 @@ namespace tf_model
 			std::cout << outputs[i].DebugString();
 		}
 		std::cout << std::endl;
-	
-		return CYAL_SUCCESS;
-	}
-	
-	int ClassificationModelLoader::getTopLabels(const std::vector<tensorflow::Tensor>& outputs, int howManyLabels, tensorflow::Tensor* indices, tensorflow::Tensor* scores)
-	{
-		auto root = tensorflow::Scope::NewRootScope();
-	
-		std::string outputName = "top_k";
-		tensorflow::ops::TopK(root.WithOpName(outputName), outputs[0], howManyLabels);
-	
-		tensorflow::GraphDef graph;
-		tensorflow::Status status = root.ToGraphDef(&graph);
-		if (!status.ok())
-		{
-			std::cout << "ERROR: Run graphdef failed..." << "(code:" << CYAL_TF_RUN_GRAPHDEF_ERROR << ")" << std::endl;
-			std::cout << status.ToString() << std::endl;
-			return CYAL_TF_RUN_GRAPHDEF_ERROR;
-		}
-	
-		std::unique_ptr<tensorflow::Session> session(tensorflow::NewSession(tensorflow::SessionOptions()));
-		status = session->Create(graph);
-		if (!status.ok())
-		{
-			std::cout << "ERROR: Creating graph in session failed..." << "(code:" << CYAL_TF_CREATE_GRAPH_ERROR << ")" << std::endl;
-			std::cout << status.ToString() << std::endl;
-			return  CYAL_TF_CREATE_GRAPH_ERROR;
-		}
-	
-		std::vector<tensorflow::Tensor> outTensors;
-		status = session->Run({}, { outputName + ":0", outputName + ":1" }, {}, &outTensors);
-		if (!status.ok())
-		{
-			std::cout << "ERROR: Session run failed..." << "(code:" << CYAL_TF_SESSION_RUN_ERROR << ")" << std::endl;
-			std::cout << status.ToString() << std::endl;
-			return CYAL_TF_SESSION_RUN_ERROR;
-		}
-	
-		*scores = outTensors[0];
-		*indices = outTensors[1];
-		//std::cout << indices[0].matrix<tensorflow::int32>() << std::endl;
-	
-		return CYAL_SUCCESS;
-	}
-	
-	int ClassificationModelLoader::printTopLabels(const std::vector<tensorflow::Tensor>& outputs, const std::string& labelsFileName)
-	{
-		std::vector<std::string> labels;
-		std::size_t labelCount;
-	
-		int err = inputFeat.readLabelsFile(labelsFileName, &labels, &labelCount);
-		if (CYAL_SUCCESS != err)
-		{
-			std::cout << "ERROR: Read Labels from file failed..." << "(code:" << err << ")" << std::endl;
-			return err;
-		}
-	
-		const int howManyLabels = std::min(5, static_cast<int>(labelCount));
-		tensorflow::Tensor indices;
-		tensorflow::Tensor scores;
-		err = getTopLabels(outputs, howManyLabels, &indices, &scores);
-		if (CYAL_SUCCESS != err)
-		{
-			std::cout << "ERROR: Get top labels failed..." << "(code:" << err << ")" << std::endl;
-			return err;
-		}
-	
-		tensorflow::TTypes<float>::Flat scoresFlat = scores.flat<float>();
-		tensorflow::TTypes<tensorflow::int32>::Flat indicesFlat = indices.flat<tensorflow::int32>();
-		for (int pos = 0; pos < howManyLabels; ++pos)
-		{
-			const int labelIndex = indicesFlat(pos);
-			const float score = scoresFlat(pos);
-			std::cout << labels[labelIndex] << "( " << labelIndex << " ): " << score << std::endl;
-		}
-	
-		return CYAL_SUCCESS;
-	}
-	
-	int ClassificationModelLoader::checkTopLabel(const std::vector<tensorflow::Tensor>& outputs, int expected, bool* isExpected)
-	{
-		*isExpected = false;
-		tensorflow::Tensor indices;
-		tensorflow::Tensor scores;
-		const int howManyLabels = 1;
-		int err = getTopLabels(outputs, howManyLabels, &indices, &scores);
-		if (CYAL_SUCCESS != err)
-		{
-			std::cout << "ERROR: Get top labels failed..." << "(code:" << CYAL_GET_TOP_LABELS_ERROR << ")" << std::endl;
-			return CYAL_GET_TOP_LABELS_ERROR;
-		}
-	
-		tensorflow::TTypes<tensorflow::int32>::Flat indicesFlat = indices.flat<tensorflow::int32>();
-		if (indicesFlat(0) != expected)
-		{
-			std::cout << "ERROR: Expected label#" << expected << " but got #" << indicesFlat(0) << "(code:" << CYAL_CHECK_TOP_LABELS_ERROR << ")" << std::endl;
-			*isExpected = false;
-			return CYAL_CHECK_TOP_LABELS_ERROR;
-		}
-		else
-		{
-			*isExpected = true;
-		}
 	
 		return CYAL_SUCCESS;
 	}

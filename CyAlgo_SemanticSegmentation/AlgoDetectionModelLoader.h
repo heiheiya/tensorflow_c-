@@ -28,6 +28,30 @@ namespace tf_model
 		//////////////////////////////////////////////////////////////////////////
 		int tfTensor2cvMat(tensorflow::Tensor& inputTensor, cv::Mat& output);
 
+		//////////////////////////////////////////////////////////////////////////
+		//Takes a file name, and load a list of labels from it
+		//@param: const std::string& fileName, a file name
+		//@param: std::vector<float>* result, the box priors stored in a vector
+		//separated by comma
+		//@param: std::size_t* foundLabelCount, the found label count
+		//////////////////////////////////////////////////////////////////////////
+		int readLocationsFile(const std::string& fileName, std::vector<float>* result, std::size_t* foundLabelCount);
+
+		//////////////////////////////////////////////////////////////////////////
+		//Takes a tensor, and save it as image at the given filePath
+		//@param: const tensorflow::Tensor& tensor, a tensor
+		//@param:const std::string& filePath, the path you want to save tensor as image
+		//////////////////////////////////////////////////////////////////////////
+		int saveImage(const tensorflow::Tensor& tensor, const std::string& filePath);
+
+		//////////////////////////////////////////////////////////////////////////
+		//Converts an encoded location to an box placement with box priors
+		//@param: const float* encodedLocation, the location you want to convert
+		//@param: const float* boxPriors, box priors to box placement
+		//@param: float* decodedLocation, box placement
+		//////////////////////////////////////////////////////////////////////////
+		void decodeLocation(const float* encodedLocation, const float* boxPriors, float* decodedLocation);
+
 	private:
 		tensorflow::int32 inputWidth;
 		tensorflow::int32 inputHeight;

@@ -7,7 +7,6 @@
 #include "tensorflow/cc/ops/standard_ops.h"
 #include "tensorflow/core/lib/core/errors.h"
 
-#include "AlgoSegmentationModelLoader.h"
 #include "Common.h"
 #include "AlgoModelLoaderBase.h"
 
@@ -38,32 +37,39 @@ namespace tf_model
 	int FeatureAdapterBase::readTensorFromImageFile(const std::string& fileName, const int inputHeight, const int inputWidth, const int channels, const float intputSTD, const float inputMean, std::vector<tensorflow::Tensor>* outTensors)
 	{
 		auto root = tensorflow::Scope::NewRootScope();
-		//std::string inputName = "file_reader";
+		std::string inputName = "file_reader";
 		std::string outputName = "normalized";
+		std::string originalName = "identity";
 	
-		tensorflow::Tensor input(tensorflow::DT_STRING, tensorflow::TensorShape());
-		int err = readEntireFile(tensorflow::Env::Default(), fileName, &input);
-		if (err != CYAL_SUCCESS)
-		{
-			std::cout << "ERROR: Read entire file failed..." << "(code:" << CYAL_READ_FILE_ERROR << ")" << std::endl;
-			return CYAL_READ_FILE_ERROR;
-		}
+		//tensorflow::Tensor input(tensorflow::DT_STRING, tensorflow::TensorShape());
+		//int err = readEntireFile(tensorflow::Env::Default(), fileName, &input);
+		//if (err != CYAL_SUCCESS)
+		//{
+		//	std::cout << "ERROR: Read entire file failed..." << "(code:" << CYAL_READ_FILE_ERROR << ")" << std::endl;
+		//	return CYAL_READ_FILE_ERROR;
+		//}
 	
-		auto fileReader = tensorflow::ops::Placeholder(root.WithOpName("input"), tensorflow::DataType::DT_STRING);
-		inputs.push_back(std::pair<std::string, tensorflow::Tensor>("input", input));
+		//auto fileReader = tensorflow::ops::Placeholder(root.WithOpName(inputName), tensorflow::DataType::DT_STRING);
+		//inputs.push_back(std::pair<std::string, tensorflow::Tensor>("input", input));
 	
-		//auto fileReader = tensorflow::ops::ReadFile(root.WithOpName("file_reader"), fileName);
+		auto fileReader = tensorflow::ops::ReadFile(root.WithOpName(inputName), fileName);
 		tensorflow::Output imageReader;
 		if (tensorflow::str_util::EndsWith(fileName, ".png"))
 		{
 			imageReader = tensorflow::ops::DecodePng(root.WithOpName("png_reader"), fileReader, tensorflow::ops::DecodePng::Channels(channels));
 		}
-		else
+		else if (tensorflow::str_util::EndsWith(fileName, ".jpg"))
 		{
 			imageReader = tensorflow::ops::DecodeJpeg(root.WithOpName("jpeg_reader"), fileReader, tensorflow::ops::DecodeJpeg::Channels(channels));
 		}
+		else
+		{
+			std::cout << "ERROR: Only saving of png or jpeg files is supported..." << "(code:" << CYAL_TF_SAVE_FORMAT_NOT_SUPPORT_ERROR << ")" << std::endl;
+			return CYAL_TF_SAVE_FORMAT_NOT_SUPPORT_ERROR;
+		}
 	
-		auto floatCaster = tensorflow::ops::Cast(root.WithOpName("float_caster"), imageReader, tensorflow::DT_FLOAT);
+		auto originalImage = tensorflow::ops::Identity(root.WithOpName(originalName), imageReader);
+		auto floatCaster = tensorflow::ops::Cast(root.WithOpName("float_caster"), originalImage, tensorflow::DT_FLOAT);
 		//add a batch dimension of 1 to the start with ExpandDims().
 		auto dimsExpander = tensorflow::ops::ExpandDims(root, floatCaster, 0);
 		auto resized = tensorflow::ops::ResizeBilinear(root, dimsExpander, tensorflow::ops::Const(root.WithOpName("resize"), { inputHeight, inputWidth }));
@@ -74,9 +80,9 @@ namespace tf_model
 		tensorflow::Status status = root.ToGraphDef(&graph);
 		if (!status.ok())
 		{
-			std::cout << "ERROR: Run graphdef failed..." << "(code:" << CYAL_TF_RUN_GRAPHDEF_ERROR << ")" << std::endl;
+			std::cout << "ERROR: Run graphdef failed..." << "(code:" << CYAL_TF_CONVERT_GRAPHDEF_ERROR << ")" << std::endl;
 			std::cout << status.ToString() << std::endl;
-			return CYAL_TF_RUN_GRAPHDEF_ERROR;
+			return CYAL_TF_CONVERT_GRAPHDEF_ERROR;
 		}
 	
 		std::unique_ptr<tensorflow::Session> session(tensorflow::NewSession(tensorflow::SessionOptions()));
@@ -87,7 +93,7 @@ namespace tf_model
 			std::cout << status.ToString() << std::endl;
 			return CYAL_TF_CREATE_GRAPH_ERROR;
 		}
-		status = session->Run({ inputs }, { outputName }, {}, outTensors);
+		status = session->Run({ }, { outputName, originalName }, {}, outTensors);
 		if (!status.ok())
 		{
 			std::cout << "ERROR: Run session failed..." << "(code:" << CYAL_TF_SESSION_RUN_ERROR << ")" << std::endl;
@@ -140,6 +146,47 @@ namespace tf_model
 		return CYAL_SUCCESS;
 	}
 	
+	int FeatureAdapterBase::getTopDetections(const std::vector<tensorflow::Tensor>& outputs, int howManyLabels, tensorflow::Tensor* indices, tensorflow::Tensor* scores)
+	{
+		auto root = tensorflow::Scope::NewRootScope();
+
+		std::string outputName = "top_k";
+		tensorflow::ops::TopK(root.WithOpName(outputName), outputs[0], howManyLabels);
+
+		tensorflow::GraphDef graph;
+		tensorflow::Status status = root.ToGraphDef(&graph);
+		if (!status.ok())
+		{
+			std::cout << "ERROR: Run graphdef failed..." << "(code:" << CYAL_TF_CONVERT_GRAPHDEF_ERROR << ")" << std::endl;
+			std::cout << status.ToString() << std::endl;
+			return CYAL_TF_CONVERT_GRAPHDEF_ERROR;
+		}
+
+		std::unique_ptr<tensorflow::Session> session(tensorflow::NewSession(tensorflow::SessionOptions()));
+		status = session->Create(graph);
+		if (!status.ok())
+		{
+			std::cout << "ERROR: Creating graph in session failed..." << "(code:" << CYAL_TF_CREATE_GRAPH_ERROR << ")" << std::endl;
+			std::cout << status.ToString() << std::endl;
+			return  CYAL_TF_CREATE_GRAPH_ERROR;
+		}
+
+		std::vector<tensorflow::Tensor> outTensors;
+		status = session->Run({}, { outputName + ":0", outputName + ":1" }, {}, &outTensors);
+		if (!status.ok())
+		{
+			std::cout << "ERROR: Session run failed..." << "(code:" << CYAL_TF_SESSION_RUN_ERROR << ")" << std::endl;
+			std::cout << status.ToString() << std::endl;
+			return CYAL_TF_SESSION_RUN_ERROR;
+		}
+
+		*scores = outTensors[0];
+		*indices = outTensors[1];
+		//std::cout << indices[0].matrix<tensorflow::int32>() << std::endl;
+
+		return CYAL_SUCCESS;
+	}
+
 	int FeatureAdapterBase::readLabelsFile(const std::string& fileName, std::vector<std::string>* result, std::size_t* foundLabelCount)
 	{
 		std::ifstream file(fileName);

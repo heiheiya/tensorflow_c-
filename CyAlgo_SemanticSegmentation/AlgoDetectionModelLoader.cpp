@@ -1,5 +1,7 @@
-#include "tensorflow/core/public/session.h"
-#include "tensorflow/core/platform/env.h"
+
+
+#include "tensorflow/cc/ops/standard_ops.h"
+#include "tensorflow/core/lib/core/errors.h"
 
 #include "AlgoDetectionModelLoader.h"
 #include "Common.h"
@@ -98,6 +100,113 @@ namespace tf_model
 		//	}
 		//}
 		return CYAL_SUCCESS;
+	}
+
+	int DetectionFeatureAdapter::readLocationsFile(const std::string& fileName, std::vector<float>* result, std::size_t* foundLabelCount)
+	{
+		std::ifstream file(fileName);
+		if (!file)
+		{
+			std::cout << "ERROR: File " << fileName << " not found..." << "(code:" << CYAL_READ_FILE_ERROR << ")" << std::endl;
+			return CYAL_READ_FILE_ERROR;
+		}
+
+		result->clear();
+		std::string line;
+		while (std::getline(file, line))
+		{
+			std::vector<float> tokens;
+			bool err = tensorflow::str_util::SplitAndParseAsFloats(line, ',', &tokens);
+			if (!err)
+			{
+				std::cout << "ERROR: Parse file failed..." << "(code:" << CYAL_TF_SPLIT_PARSE_FILE_ERROR << ")" << std::endl;
+				return CYAL_TF_SPLIT_PARSE_FILE_ERROR;
+			}
+			for (auto number : tokens)
+			{
+				result->push_back(number);
+			}
+		}
+		*foundLabelCount = result->size();
+		return CYAL_SUCCESS;
+	}
+
+	int DetectionFeatureAdapter::saveImage(const tensorflow::Tensor& tensor, const std::string& filePath)
+	{
+		auto root = tensorflow::Scope::NewRootScope();
+
+		std::string outputName = "file_writer";
+
+		tensorflow::Output imageEncoder;
+
+		if (tensorflow::str_util::EndsWith(filePath, ".png"))
+		{
+			imageEncoder = tensorflow::ops::EncodePng(root.WithOpName("png_reader"), tensor);
+		}
+		else if (tensorflow::str_util::EndsWith(filePath, ".png"))
+		{
+			imageEncoder = tensorflow::ops::EncodeJpeg(root.WithOpName("jpeg_reader"), tensor);
+		}
+		else
+		{
+			std::cout << "ERROR: Only saving of png or jpeg files is supported..." << "(code:" << CYAL_TF_SAVE_FORMAT_NOT_SUPPORT_ERROR << ")" << std::endl;
+			return CYAL_TF_SAVE_FORMAT_NOT_SUPPORT_ERROR;
+		}
+
+		tensorflow::ops::WriteFile fileSaver = tensorflow::ops::WriteFile(root.WithOpName(outputName), filePath, imageEncoder);
+
+		tensorflow::GraphDef graph;
+		tensorflow::Status status = root.ToGraphDef(&graph);
+		if (!status.ok())
+		{
+			std::cout << "ERROR: Run graphdef failed..." << "(code:" << CYAL_TF_CONVERT_GRAPHDEF_ERROR << ")" << std::endl;
+			std::cout << status.ToString() << std::endl;
+			return CYAL_TF_CONVERT_GRAPHDEF_ERROR;
+		}
+
+		std::unique_ptr<tensorflow::Session> session(tensorflow::NewSession(tensorflow::SessionOptions()));
+		status = session->Create(graph);
+		if (!status.ok())
+		{
+			std::cout << "ERROR: Create graph failed..." << "(code:" << CYAL_TF_CREATE_GRAPH_ERROR << ")" << std::endl;
+			std::cout << status.ToString() << std::endl;
+			return CYAL_TF_CREATE_GRAPH_ERROR;
+		}
+
+		std::vector<tensorflow::Tensor> outputs;
+		status = session->Run({}, {}, { outputName }, &outputs);
+		if (!status.ok())
+		{
+			std::cout << "ERROR: Run session failed..." << "(code:" << CYAL_TF_SESSION_RUN_ERROR << ")" << std::endl;
+			std::cout << status.ToString() << std::endl;
+			return CYAL_TF_SESSION_RUN_ERROR;
+		}
+
+		return CYAL_SUCCESS;
+	}
+
+	void DetectionFeatureAdapter::decodeLocation(const float* encodedLocation, const float* boxPriors, float* decodedLocation)
+	{
+		bool nonZero = false;
+		for (int i = 0; i < 4; ++i)
+		{
+			const float currEncoding = encodedLocation[i];
+			nonZero = nonZero || currEncoding != 0.0f;
+
+			const float mean = boxPriors[i * 2];
+			const float stdDev = boxPriors[i * 2 + 1];
+
+			float currentLocation = currEncoding * stdDev + mean;
+
+			currentLocation = std::max(currentLocation, 0.0f);
+			currentLocation = std::min(currentLocation, 1.0f);
+			decodedLocation[i] = currentLocation;
+		}
+
+		if (!nonZero)
+		{
+			std::cout << "WARNING: No non-zero encodings..." << std::endl;
+		}
 	}
 
 	DetectionModelLoader::DetectionModelLoader()

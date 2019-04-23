@@ -1,6 +1,5 @@
 #pragma once
 
-#include <iostream>
 #include <vector>
 
 #include "tensorflow/core/public/session.h"
@@ -52,6 +51,16 @@ namespace tf_model
 		//@param: std::size_t* foundLabelCount, the found label count
 		//////////////////////////////////////////////////////////////////////////
 		virtual int readLabelsFile(const std::string& fileName, std::vector<std::string>* result, std::size_t* foundLabelCount);
+
+		//////////////////////////////////////////////////////////////////////////
+		//Get the highest scores and their positions in the tensor
+		//@param: const std::vector<tensorflow::Tensor>& outputs, a vector of tensor
+		//@param: int howManyLabels, how many labels want to parse
+		//@param: tensorflow::Tensor* indices, indices
+		//@param: tensorflow::Tensor* scores, scores
+		//////////////////////////////////////////////////////////////////////////
+		virtual int getTopDetections(const std::vector<tensorflow::Tensor>& outputs, int howManyLabels,
+			tensorflow::Tensor* indices, tensorflow::Tensor* scores);
 
 	public:
 		std::vector<std::pair<std::string, tensorflow::Tensor>> inputs;

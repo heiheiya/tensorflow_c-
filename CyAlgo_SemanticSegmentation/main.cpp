@@ -143,12 +143,12 @@ int main()
 		std::cout << "ERROR: Predict failed..." << "(code:" << err << ")" << std::endl;
 		return err;
 	}
-	std::cout << outputs[0].matrix<float>() << std::endl;
+	//std::cout << outputs[0].matrix<float>() << std::endl;
 
 	if (selfTest)
 	{
 		bool expectedMatches;
-		err = model.checkTopLabel(outputs, 653, &expectedMatches);
+		err = model.inputFeat.checkTopLabel(outputs, 653, &expectedMatches);
 		if (CYAL_GET_TOP_LABELS_ERROR == err)
 		{
 			std::cout << "ERROR: Get top labels failed..." << "(code:" << err << ")" << std::endl;
@@ -163,7 +163,7 @@ int main()
 		else{}
 	}
 
-	err = model.printTopLabels(outputs, labels);
+	err = model.inputFeat.printTopLabels(outputs, labels);
 	if (CYAL_SUCCESS != err)
 	{
 		std::cout << "ERROR: Print top labels failed..." << "(code:" << err << ")" << std::endl;

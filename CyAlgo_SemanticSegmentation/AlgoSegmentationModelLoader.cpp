@@ -1,5 +1,4 @@
 #include <iostream>
-#include <vector>
 #include <map>
 #include <fstream>
 #include <algorithm>

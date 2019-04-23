@@ -1,8 +1,6 @@
 #pragma once
 
 #include "AlgoModelLoaderBase.h"
-#include "tensorflow/core/public/session.h"
-#include "tensorflow/core/platform/env.h"
 #include "opencv2/opencv.hpp"
 
 namespace tf_model
