@@ -79,9 +79,6 @@ namespace tf_model
 		//////////////////////////////////////////////////////////////////////////
 		virtual int loadGraph(std::unique_ptr<tensorflow::Session>* session, const std::string& modelPath);
 
-		virtual int predict(std::unique_ptr<tensorflow::Session>* session, std::string inputNode, const tensorflow::Tensor& input,
-			const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs) = 0;
-
 	public:
 		tensorflow::GraphDef graphdef;
 	};

@@ -43,7 +43,7 @@ namespace tf_model
 		//@param std::vector<tensorflow::Tensor>& outputs, output tensor vector
 		//////////////////////////////////////////////////////////////////////////
 		int predict(std::unique_ptr<tensorflow::Session>* session, std::string inputNode, const tensorflow::Tensor& input,
-			const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs) override;
+			const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs);
 
 	public:
 		ClassificationFeatureAdapter inputFeat;

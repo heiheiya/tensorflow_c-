@@ -26,7 +26,7 @@ namespace tf_model
 		//@param: tensorflow::Tensor& inputTensor, an input tensorflow tensor
 		//@param: cv::Mat output, a output opencv Mat
 		//////////////////////////////////////////////////////////////////////////
-		int tfTensor2cvMat(tensorflow::Tensor& inputTensor, cv::Mat& output);
+		int tfTensor2cvMat(tensorflow::Tensor* inputTensor, cv::Mat& output);
 
 		//////////////////////////////////////////////////////////////////////////
 		//Takes a file name, and load a list of labels from it
@@ -52,6 +52,24 @@ namespace tf_model
 		//////////////////////////////////////////////////////////////////////////
 		void decodeLocation(const float* encodedLocation, const float* boxPriors, float* decodedLocation);
 
+		float decodeScore(float encodedScore) { return 1 / (1 + exp(-encodedScore)); }
+
+		void drawBox(const int imageWidth, const int imageHeight, int left, int top,
+			int right, int bottom, tensorflow::TTypes<tensorflow::uint8>::Flat* image);
+
+		//////////////////////////////////////////////////////////////////////////
+		//Prints out the top five highest-scoring values
+		//@param: const std::vector<tensorflow::Tensor>& outputs, the model run output
+		//@param: const std::string& labelsFileName, a file contains the labels
+		//@param: const int numBoxes, the number of boxes
+		//@param: const int numDetections, the number of detections
+		//@param: const std::string& imageFileName, which image to draw box on
+		//@param: tensorflow::Tensor* originalTensor, tensor contains the image data
+		//////////////////////////////////////////////////////////////////////////
+		int printTopDetections(const std::vector<tensorflow::Tensor>& outputs, const std::string& labelsFileName,
+			const int numBoxes, const int numDetections, const std::string& imageFileName,
+			tensorflow::Tensor* originalTensor);
+
 	private:
 		tensorflow::int32 inputWidth;
 		tensorflow::int32 inputHeight;
@@ -72,11 +90,12 @@ namespace tf_model
 		//@param std::unique_ptr<tensorflow::Session>* session, work session
 		//@param std::string inputNode, tensor name of input node
 		//@param tensorflow::Tensor& input, input tensor
-		//@param std::string outputNode, tensor name of output node
+		//@param std::string outputScoreNode, tensor name of output score node
+		//@param std::string outputLocNode, tensor name of output location node
 		//@param std::vector<tensorflow::Tensor>& outputs, output tensor vector
 		//////////////////////////////////////////////////////////////////////////
 		int predict(std::unique_ptr<tensorflow::Session>* session, std::string inputNode, const tensorflow::Tensor& input,
-			const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs) override;
+			const std::string& outputScoreNode, const std::string& outputLocNode, std::vector<tensorflow::Tensor>& outputs);
 
 
 	public:

@@ -1,7 +1,8 @@
-
+#include <algorithm>
 
 #include "tensorflow/cc/ops/standard_ops.h"
 #include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/core/platform/default/logging.h"
 
 #include "AlgoDetectionModelLoader.h"
 #include "Common.h"
@@ -64,41 +65,25 @@ namespace tf_model
 		//}
 	}
 
-	int DetectionFeatureAdapter::tfTensor2cvMat(tensorflow::Tensor& inputTensor, cv::Mat& output)
+	int DetectionFeatureAdapter::tfTensor2cvMat(tensorflow::Tensor* inputTensor, cv::Mat& output)
 	{
-		tensorflow::TensorShape inputTensorShape = inputTensor.shape();
-		if (inputTensorShape.dims() != 4)
+		tensorflow::TensorShape inputTensorShape = (*inputTensor).shape();
+		if (inputTensorShape.dims() != 3)
 		{
-			std::cout << "ERROR: The input tensor shape is not 4 dimension..." << "(code:" << CYAL_TF_TENSOR_DIMENSION_ERROR << ")" << std::endl;
+			std::cout << "ERROR: The input tensor shape is not 3 dimension...but " << inputTensorShape.dims() << "(code:" << CYAL_TF_TENSOR_DIMENSION_ERROR << ")" << std::endl;
 			return CYAL_TF_TENSOR_DIMENSION_ERROR;
 		}
 
-		int height = inputTensorShape.dim_size(1);
-		int width = inputTensorShape.dim_size(2);
-		int depth = inputTensorShape.dim_size(3);
+		int height = inputTensorShape.dim_size(0);
+		int width = inputTensorShape.dim_size(1);
+		int depth = inputTensorShape.dim_size(2);
 
-		float* tensorDataPtr = inputTensor.flat<float>().data();
+		std::cout << inputTensor->dtype() << std::endl;
+		uint8_t* tensorDataPtr = inputTensor->flat<tensorflow::uint8>().data();
 
-		cv::Mat tempMat(height, width, CV_32FC(depth), tensorDataPtr);
-		tempMat *= 255.0;
-		tempMat.convertTo(output, CV_8UC(depth));
+		output = cv::Mat(height, width, CV_8UC3, tensorDataPtr);
+		cv::cvtColor(output, output, cv::COLOR_BGR2RGB);
 
-		//output = cv::Mat(height, width, CV_32FC(depth), tensorDataPtr);
-		//auto inputTensorMapped = inputTensor.tensor<float, 4>();
-		//float* data = (float*)output.data;
-		//for (int y = 0; y < height; ++y)
-		//{
-		//	float* dataRow = data + (y * width * depth);
-		//	for (int x = 0; x < width; ++x)
-		//	{
-		//		float* dataPixel = dataRow + (x * depth);
-		//		for (int c = 0; c < depth; ++c)
-		//		{
-		//			float* dataValue = dataPixel + c;
-		//			*dataValue = inputTensorMapped(0, y, x, c);
-		//		}
-		//	}
-		//}
 		return CYAL_SUCCESS;
 	}
 
@@ -143,7 +128,7 @@ namespace tf_model
 		{
 			imageEncoder = tensorflow::ops::EncodePng(root.WithOpName("png_reader"), tensor);
 		}
-		else if (tensorflow::str_util::EndsWith(filePath, ".png"))
+		else if (tensorflow::str_util::EndsWith(filePath, ".jpg"))
 		{
 			imageEncoder = tensorflow::ops::EncodeJpeg(root.WithOpName("jpeg_reader"), tensor);
 		}
@@ -209,6 +194,104 @@ namespace tf_model
 		}
 	}
 
+	void DetectionFeatureAdapter::drawBox(const int imageWidth, const int imageHeight, int left, int top, int right, int bottom, tensorflow::TTypes<tensorflow::uint8>::Flat* image)
+	{
+		tensorflow::TTypes<tensorflow::uint8>::Flat imageRef = *image;
+
+		top = std::max(0, std::min(imageHeight - 1, top));
+		bottom = std::max(0, std::min(imageHeight - 1, bottom));
+
+		left = std::max(0, std::min(imageWidth - 1, left));
+		right = std::max(0, std::min(imageWidth - 1, right));
+
+		for (int i = 0; i < 3; ++i)
+		{
+			tensorflow::uint8 val = i == 2 ? 255 : 0;
+			for (int x = left; x <= right; ++x)
+			{
+				imageRef((top * imageWidth + x) * 3 + i) = val;
+				imageRef((bottom * imageWidth + x) * 3 + i) = val;
+			}
+			for (int y = top; y <= bottom; ++y)
+			{
+				imageRef((y * imageWidth + left) * 3 + i) = val;
+				imageRef((y * imageWidth + right) * 3 + i) = val;
+			}
+		}
+	}
+
+	int DetectionFeatureAdapter::printTopDetections(const std::vector<tensorflow::Tensor>& outputs, const std::string& labelsFileName, const int numBoxes, const int numDetections, const std::string& imageFileName, tensorflow::Tensor* originalTensor)
+	{
+		std::vector<float> locations;
+		std::size_t labelCount;
+
+		int err = readLocationsFile(labelsFileName, &locations, &labelCount);
+		if (CYAL_SUCCESS != err)
+		{
+			std::cout << "ERROR: Read locations file failed..." << "(code:" << err << ")" << std::endl;
+			return err;
+		}
+		CHECK_EQ(labelCount, numBoxes * 8);
+
+		const int howManyLabels = std::min(numDetections, static_cast<int>(labelCount));
+		tensorflow::Tensor indices;
+		tensorflow::Tensor scores;
+		err = getTopDetections(outputs, howManyLabels, &indices, &scores);
+		if (CYAL_SUCCESS != err)
+		{
+			std::cout << "ERROR: Get top detections failed..." << "(code:" << err << ")" << std::endl;
+			return err;
+		}
+
+		tensorflow::TTypes<float>::Flat scoresFlat = scores.flat<float>();
+		tensorflow::TTypes<tensorflow::int32>::Flat indicesFlat = indices.flat<tensorflow::int32>();
+
+		const tensorflow::Tensor& encodedLocations = outputs[1];
+		auto locationsEncoded = encodedLocations.flat<float>();
+
+		std::cout << originalTensor->DebugString() << std::endl;
+		const int imageWidth = originalTensor->shape().dim_size(1);
+		const int imageHeight = originalTensor->shape().dim_size(0);
+
+		tensorflow::TTypes<tensorflow::uint8>::Flat imageFlat = originalTensor->flat<tensorflow::uint8>();
+
+		std::cout << "===== Top " << howManyLabels << " Detections =====" << std::endl;
+		for (int pos = 0; pos < howManyLabels; ++pos)
+		{
+			const int labelIndex = indicesFlat(pos);
+			const float score = scoresFlat(pos);
+
+			float decodedLocation[4];
+			decodeLocation(&locationsEncoded(labelIndex * 4), &locations[labelIndex * 8], decodedLocation);
+
+			float left = decodedLocation[0] * imageWidth;
+			float top = decodedLocation[1] * imageHeight;
+			float right = decodedLocation[2] * imageWidth;
+			float bottom = decodedLocation[3] * imageHeight;
+
+			std::cout << "Detection " << pos << ": "
+				<< "L: " << left << " "
+				<< "T: " << top << " "
+				<< "R: " << right << " "
+				<< "B: " << bottom << " "
+				<< "(" << labelIndex << ") score: " << decodeScore(score) << std::endl;
+
+			drawBox(imageWidth, imageHeight, left, top, right, bottom, &imageFlat);
+
+			if (!imageFileName.empty())
+			{
+				err = saveImage(*originalTensor, imageFileName);
+				if (CYAL_SUCCESS != err)
+				{
+					std::cout << "ERROR: Save image failed..." << "(code:" << err << ")" << std::endl;
+					return err;
+				}
+			}
+		}
+
+		return CYAL_SUCCESS;
+	}
+
 	DetectionModelLoader::DetectionModelLoader()
 	{
 
@@ -220,10 +303,24 @@ namespace tf_model
 	}
 
 	int DetectionModelLoader::predict(std::unique_ptr<tensorflow::Session>* session, std::string inputNode, const tensorflow::Tensor& input,
-		const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs)
+		const std::string& outputScoreNode, const std::string& outputLocNode, std::vector<tensorflow::Tensor>& outputs)
 	{
+		tensorflow::Status status = (*session)->Run({ { inputNode, input } }, { outputScoreNode, outputLocNode }, {}, &outputs);
+		if (!status.ok())
+		{
+			std::cout << "ERROR: Session run failed..." << "(code:" << CYAL_TF_SESSION_RUN_ERROR << ")" << std::endl;
+			std::cout << status.ToString() << std::endl;
+			return CYAL_TF_SESSION_RUN_ERROR;
+		}
+
+		std::cout << "Output tensor size: " << outputs.size() << std::endl;
+		for (std::size_t i = 0; i < outputs.size(); i++)
+		{
+			std::cout << outputs[i].DebugString() << std::endl;
+		}
+		std::cout << std::endl;
+
 		return CYAL_SUCCESS;
 	}
-
 }
 

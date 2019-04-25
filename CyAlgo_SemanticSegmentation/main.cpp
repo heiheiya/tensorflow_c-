@@ -3,7 +3,11 @@
 #include "tensorflow/core/public/session.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/lib/io/path.h"
+
+#include "opencv2/opencv.hpp"
+
 #include "AlgoClassificationModelLoader.h"
+#include "AlgoDetectionModelLoader.h"
 #include "Common.h"
 
 using namespace tensorflow;
@@ -98,7 +102,7 @@ using namespace tensorflow;
 //	return CYAL_SUCCESS;
 //}
 
-int main()
+int runClassification()
 {
 	std::string image = "image/grace_hopper.jpg";
 	std::string graph = "model/inception_v3_2016_08_28_frozen.pb";
@@ -160,7 +164,7 @@ int main()
 			std::cout << "...Self-test failed..." << std::endl;
 			return err;
 		}
-		else{}
+		else {}
 	}
 
 	err = model.inputFeat.printTopLabels(outputs, labels);
@@ -170,5 +174,86 @@ int main()
 		return err;
 	}
 
+	return CYAL_SUCCESS;
+}
+
+int runDetection()
+{
+	std::string image = "image/surfers.jpg";
+	std::string graph = "model/multibox_model.pb";
+	std::string boxPriors = "model/multibox_location_priors.txt";
+
+	tensorflow::int32 inputWidth = 224;
+	tensorflow::int32 inputHeight = 224;
+	tensorflow::int32 channels = 3;
+	tensorflow::int32 inputMean = 128;
+	tensorflow::int32 inputSTD = 128;
+	tensorflow::int32 numDetections = 5;
+	tensorflow::int32 numBoxes = 784;
+
+	std::string inputLayer = "ResizeBilinear";
+	std::string outputLocationLayer = "output_locations/Reshape";
+	std::string outputScoreLayer = "output_scores/Reshape";
+	std::string rootDir = "";
+	std::string imageOut = "output/prediction.jpg";
+
+	std::unique_ptr<tensorflow::Session> session;
+	std::string graphPath = tensorflow::io::JoinPath(rootDir, graph);
+	tf_model::DetectionModelLoader model;
+	int err = model.loadGraph(&session, graphPath);
+	if (CYAL_SUCCESS != err)
+	{
+		std::cout << "ERROR: Load model failed..." << "(code:" << err << ")" << std::endl;
+		return err;
+	}
+
+	std::vector<Tensor> imageTensors;
+	std::string imagePath = tensorflow::io::JoinPath(rootDir, image);
+	err = model.inputFeat.readTensorFromImageFile(imagePath, inputHeight, inputWidth, channels, inputSTD, inputMean, &imageTensors);
+	if (CYAL_SUCCESS != err)
+	{
+		std::cout << "ERROR: Read tensor from image file failed..." << "(code:" << err << ")" << std::endl;
+		return err;
+	}
+
+	const tensorflow::Tensor& resizedTensor = imageTensors[0];
+
+	std::vector<tensorflow::Tensor> outputs;
+	err = model.predict(&session, inputLayer, resizedTensor, outputScoreLayer, outputLocationLayer, outputs);
+	if (CYAL_SUCCESS != err)
+	{
+		std::cout << "ERROR: Predict failed..." << "(code:" << err << ")" << std::endl;
+		return err;
+	}
+
+	err = model.inputFeat.printTopDetections(outputs, boxPriors, numBoxes, numDetections, imageOut, &imageTensors[1]);
+	if (CYAL_SUCCESS != err)
+	{
+		std::cout << "ERROR: Print top detections failed..." << "(code:" << err << ")" << std::endl;
+		return err;
+	}
+
+	cv::Mat outMat;
+	err = model.inputFeat.tfTensor2cvMat(&imageTensors[1], outMat);
+	if (CYAL_SUCCESS != err)
+	{
+		std::cout << "ERROR: Convert tensorflow Tensor to OpenCV Mat failed..." << "(code:" << err << ")" << std::endl;
+		return err;
+	}
+	cv::namedWindow("¡¾display¡¿", CV_WINDOW_NORMAL);
+	cv::imshow("¡¾display¡¿", outMat);
+	cv::waitKey();
+
+	return CYAL_SUCCESS;
+}
+
+int main()
+{
+	int err = runDetection();
+	if (CYAL_SUCCESS != err)
+	{
+		std::cout << "ERROR: Run detection failed..." << "(code:" << err << ")" << std::endl;
+		return err;
+	}
 	return CYAL_SUCCESS;
 }
