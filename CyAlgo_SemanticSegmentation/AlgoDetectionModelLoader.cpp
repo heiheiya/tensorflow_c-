@@ -20,7 +20,7 @@ namespace tf_model
 
 	}
 
-	tensorflow::Tensor DetectionFeatureAdapter::cvMat2tfTensor(cv::Mat input, float normal/* = 1/255.0*/)
+	tensorflow::Tensor DetectionFeatureAdapter::cvMat2tfTensor(cv::Mat input, float normal /*= 1 / 255.0*/)
 	{
 		//auto outputTensorMapped = outputTensor.tensor<float, 4>();
 		int height = input.size().height;
@@ -316,6 +316,7 @@ namespace tf_model
 		std::cout << "Output tensor size: " << outputs.size() << std::endl;
 		for (std::size_t i = 0; i < outputs.size(); i++)
 		{
+			std::cout << "=========================" << std::endl;
 			std::cout << outputs[i].DebugString() << std::endl;
 		}
 		std::cout << std::endl;

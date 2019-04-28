@@ -5,6 +5,8 @@
 #include "tensorflow/core/public/session.h"
 #include "tensorflow/core/platform/env.h"
 
+#include "opencv2/opencv.hpp"
+
 namespace tf_model
 {
 	class FeatureAdapterBase
@@ -19,6 +21,10 @@ namespace tf_model
 		//@param: std::vector<double>* vec, input vector
 		//////////////////////////////////////////////////////////////////////////
 		virtual int vec2Tensor(const std::string& tname, std::vector<double>* vec);//tensor_name, tensor_double_vector
+
+		virtual tensorflow::Tensor cvMat2tfTensor(cv::Mat input, float normal = 1 / 255.0) = 0;
+
+		virtual int tfTensor2cvMat(tensorflow::Tensor* inputTensor, cv::Mat& output) = 0;
 
 		//////////////////////////////////////////////////////////////////////////
 		//Read data from image file and convert to Tensor

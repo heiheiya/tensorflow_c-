@@ -46,6 +46,6 @@ namespace tf_model
 			const std::string& outputNode, std::vector<tensorflow::Tensor>& outputs);
 
 	public:
-		ClassificationFeatureAdapter inputFeat;
+		ClassificationFeatureAdapter* inputFeat;
 	};
 }

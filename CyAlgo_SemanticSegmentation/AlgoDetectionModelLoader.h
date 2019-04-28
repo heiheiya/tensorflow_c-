@@ -3,7 +3,6 @@
 #include "AlgoModelLoaderBase.h"
 #include "tensorflow/core/public/session.h"
 #include "tensorflow/core/platform/env.h"
-#include "opencv2/opencv.hpp"
 
 namespace tf_model
 {
@@ -19,14 +18,14 @@ namespace tf_model
 		//@param: cv::Mat input, a input opencv Mat
 		//@param: float normal = 1 / 255.0, normalize OpenCV mat
 		//////////////////////////////////////////////////////////////////////////
-		tensorflow::Tensor cvMat2tfTensor(cv::Mat input, float normal = 1 / 255.0);
+		tensorflow::Tensor cvMat2tfTensor(cv::Mat input, float normal = 1 / 255.0) override;
 
 		//////////////////////////////////////////////////////////////////////////
 		//Convert a tensorflow tensor to opencv Mat
 		//@param: tensorflow::Tensor& inputTensor, an input tensorflow tensor
 		//@param: cv::Mat output, a output opencv Mat
 		//////////////////////////////////////////////////////////////////////////
-		int tfTensor2cvMat(tensorflow::Tensor* inputTensor, cv::Mat& output);
+		int tfTensor2cvMat(tensorflow::Tensor* inputTensor, cv::Mat& output) override;
 
 		//////////////////////////////////////////////////////////////////////////
 		//Takes a file name, and load a list of labels from it

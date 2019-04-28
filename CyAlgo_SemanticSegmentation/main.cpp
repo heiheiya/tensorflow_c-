@@ -8,6 +8,7 @@
 
 #include "AlgoClassificationModelLoader.h"
 #include "AlgoDetectionModelLoader.h"
+#include "AlgoSegmentationModelLoader.h"
 #include "Common.h"
 
 using namespace tensorflow;
@@ -130,7 +131,7 @@ int runClassification()
 	std::vector<Tensor> resizedTensors;
 	std::string imagePath = tensorflow::io::JoinPath(rootDir, image);
 	//tf_model::SegmentationFeatureAdapter inputFeat;
-	err = model.inputFeat.readTensorFromImageFile(imagePath, intputHeight, inputWidth, channels, inputSTD, inputMean, &resizedTensors);
+	err = model.inputFeat->readTensorFromImageFile(imagePath, intputHeight, inputWidth, channels, inputSTD, inputMean, &resizedTensors);
 	if (CYAL_SUCCESS != err)
 	{
 		std::cout << "ERROR: Read tensor from image file failed..." << "(code:" << err << ")" << std::endl;
@@ -152,7 +153,7 @@ int runClassification()
 	if (selfTest)
 	{
 		bool expectedMatches;
-		err = model.inputFeat.checkTopLabel(outputs, 653, &expectedMatches);
+		err = model.inputFeat->checkTopLabel(outputs, 653, &expectedMatches);
 		if (CYAL_GET_TOP_LABELS_ERROR == err)
 		{
 			std::cout << "ERROR: Get top labels failed..." << "(code:" << err << ")" << std::endl;
@@ -167,7 +168,7 @@ int runClassification()
 		else {}
 	}
 
-	err = model.inputFeat.printTopLabels(outputs, labels);
+	err = model.inputFeat->printTopLabels(outputs, labels);
 	if (CYAL_SUCCESS != err)
 	{
 		std::cout << "ERROR: Print top labels failed..." << "(code:" << err << ")" << std::endl;
@@ -247,9 +248,75 @@ int runDetection()
 	return CYAL_SUCCESS;
 }
 
+int runSegementation()
+{
+	std::string image = "image/0001TP_007170.png";
+	std::string graph = "model/frozen_graph_meta.pb";
+
+	tensorflow::int32 inputWidth = 512;
+	tensorflow::int32 inputHeight = 512;
+	tensorflow::int32 channels = 3;
+	tensorflow::int32 inputMean = 128;
+	tensorflow::int32 inputSTD = 128;
+
+
+	std::string inputLayer = "Placeholder";
+	std::string outputLayer = "logits/BiasAdd";
+	std::string rootDir = "";
+	std::string imageOut = "output/prediction.jpg";
+
+	std::unique_ptr<tensorflow::Session> session;
+	std::string graphPath = tensorflow::io::JoinPath(rootDir, graph);
+	tf_model::SegmentationModelLoader model;
+	int err = model.loadGraph(&session, graphPath);
+	if (CYAL_SUCCESS != err)
+	{
+		std::cout << "ERROR: Load model failed..." << "(code:" << err << ")" << std::endl;
+		return err;
+	}
+
+	std::vector<Tensor> imageTensors;
+	std::string imagePath = tensorflow::io::JoinPath(rootDir, image);
+	err = model.inputFeat.readTensorFromImageFile(imagePath, inputHeight, inputWidth, channels, inputSTD, inputMean, &imageTensors);
+	if (CYAL_SUCCESS != err)
+	{
+		std::cout << "ERROR: Read tensor from image file failed..." << "(code:" << err << ")" << std::endl;
+		return err;
+	}
+
+	const tensorflow::Tensor& resizedTensor = imageTensors[0];
+
+	std::vector<tensorflow::Tensor> outputs;
+	err = model.predict(&session, inputLayer, resizedTensor, outputLayer, outputs);
+	if (CYAL_SUCCESS != err)
+	{
+		std::cout << "ERROR: Predict failed..." << "(code:" << err << ")" << std::endl;
+		return err;
+	}
+
+	cv::Mat outMat;
+	err = model.inputFeat.tfTensor2cvMat(&outputs[0], outMat);
+	if (CYAL_SUCCESS != err)
+	{
+		std::cout << "ERROR: Convert tensorflow Tensor to OpenCV Mat failed..." << "(code:" << err << ")" << std::endl;
+		return err;
+	}
+
+	cv::Mat colorMat(outMat.size(), CV_8UC3, cv::Scalar(0));
+	cv::imwrite("result1.jpg", colorMat);
+	model.inputFeat.colourSegmentation(outMat, colorMat);
+	cv::imwrite("result.jpg", outMat);
+	cv::namedWindow("¡¾display¡¿", CV_WINDOW_NORMAL);
+	cv::imshow("¡¾display¡¿", outMat);
+	cv::waitKey();
+
+	return CYAL_SUCCESS;
+}
+
 int main()
 {
-	int err = runDetection();
+	//int err = runDetection();
+	int err = runSegementation();
 	if (CYAL_SUCCESS != err)
 	{
 		std::cout << "ERROR: Run detection failed..." << "(code:" << err << ")" << std::endl;

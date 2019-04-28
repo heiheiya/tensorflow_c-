@@ -33,7 +33,7 @@ namespace tf_model
 	
 		return CYAL_SUCCESS;
 	}
-	
+
 	int FeatureAdapterBase::readTensorFromImageFile(const std::string& fileName, const int inputHeight, const int inputWidth, const int channels, const float intputSTD, const float inputMean, std::vector<tensorflow::Tensor>* outTensors)
 	{
 		auto root = tensorflow::Scope::NewRootScope();
