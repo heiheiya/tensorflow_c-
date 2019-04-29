@@ -1,4 +1,5 @@
 #include <iostream>
+#include <chrono>
 
 #include "tensorflow/core/public/session.h"
 #include "tensorflow/core/platform/env.h"
@@ -148,6 +149,7 @@ int runClassification()
 		std::cout << "ERROR: Predict failed..." << "(code:" << err << ")" << std::endl;
 		return err;
 	}
+
 	//std::cout << outputs[0].matrix<float>() << std::endl;
 
 	if (selfTest)
@@ -251,7 +253,7 @@ int runDetection()
 int runSegementation()
 {
 	std::string image = "image/0001TP_007170.png";
-	std::string graph = "model/frozen_graph_meta.pb";
+	std::string graph = "model/AdapNet_frozen_graph_meta.pb";
 
 	tensorflow::int32 inputWidth = 512;
 	tensorflow::int32 inputHeight = 512;
@@ -260,8 +262,8 @@ int runSegementation()
 	tensorflow::int32 inputSTD = 128;
 
 
-	std::string inputLayer = "Placeholder";
-	std::string outputLayer = "logits/BiasAdd";
+	std::string inputLayer = "Placeholder:0";
+	std::string outputLayer = "logits/BiasAdd:0";
 	std::string rootDir = "";
 	std::string imageOut = "output/prediction.jpg";
 
@@ -287,12 +289,18 @@ int runSegementation()
 	const tensorflow::Tensor& resizedTensor = imageTensors[0];
 
 	std::vector<tensorflow::Tensor> outputs;
+	auto start = std::chrono::steady_clock::now();
 	err = model.predict(&session, inputLayer, resizedTensor, outputLayer, outputs);
 	if (CYAL_SUCCESS != err)
 	{
 		std::cout << "ERROR: Predict failed..." << "(code:" << err << ")" << std::endl;
 		return err;
 	}
+	auto end = std::chrono::steady_clock::now();
+	std::chrono::duration<double> time = end - start;
+	std::cout << "================================" << std::endl;
+	std::cout << "Time: " << time.count() << " sec" << std::endl;
+	std::cout << "================================" << std::endl;
 
 	cv::Mat outMat;
 	err = model.inputFeat.tfTensor2cvMat(&outputs[0], outMat);
@@ -303,11 +311,13 @@ int runSegementation()
 	}
 
 	cv::Mat colorMat(outMat.size(), CV_8UC3, cv::Scalar(0));
-	cv::imwrite("result1.jpg", colorMat);
 	model.inputFeat.colourSegmentation(outMat, colorMat);
-	cv::imwrite("result.jpg", outMat);
+	cv::Mat result;
+	cv::Mat img = cv::imread(image);
+	cv::resize(colorMat, result, img.size());
+	cv::imwrite(imageOut, result);
 	cv::namedWindow("¡¾display¡¿", CV_WINDOW_NORMAL);
-	cv::imshow("¡¾display¡¿", outMat);
+	cv::imshow("¡¾display¡¿", result);
 	cv::waitKey();
 
 	return CYAL_SUCCESS;

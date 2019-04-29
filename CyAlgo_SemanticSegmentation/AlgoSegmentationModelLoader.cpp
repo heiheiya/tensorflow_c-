@@ -75,17 +75,19 @@ namespace tf_model
 			return CYAL_TF_TENSOR_DIMENSION_ERROR;
 		}
 
-		std::cout << "[ " << inputTensorShape.dim_size(0) << " "
-			<< inputTensorShape.dim_size(1) << " "
-			<< inputTensorShape.dim_size(2) << " ]" << std::endl;
+		//std::cout << "[ " << inputTensorShape.dim_size(0) << " "
+		//	<< inputTensorShape.dim_size(1) << " "
+		//	<< inputTensorShape.dim_size(2) << " ]" << std::endl;
 		int height = inputTensorShape.dim_size(1);
 		int width = inputTensorShape.dim_size(2);
 		int depth = 1;
 
-		std::cout << inputTensor->dtype() << std::endl;
-		int32_t* tensorDataPtr = inputTensor->flat<tensorflow::int32>().data();
+		//std::cout << inputTensor->dtype() << std::endl;
+		tensorflow::int32* tensorDataPtr = inputTensor->flat<tensorflow::int32>().data();
 
-		output = cv::Mat(height, width, CV_8UC1, tensorDataPtr);
+		output = cv::Mat(height, width, CV_32SC1, tensorDataPtr);
+		output.convertTo(output, CV_8UC1);
+		//cv::imwrite("temp3.jpg", output);
 		//cv::cvtColor(output, output, cv::COLOR_BGR2RGB);
 
 		return CYAL_SUCCESS;
@@ -152,24 +154,24 @@ namespace tf_model
 
 	void SegmentationFeatureAdapter::colourSegmentation(cv::Mat& input, cv::Mat& output)
 	{
-		std::vector<cv::Scalar> colorTab = {
-			cv::Scalar(64, 128, 64),
-			cv::Scalar(192, 0, 128), cv::Scalar(0, 128, 192),
-			cv::Scalar(0, 128, 64), cv::Scalar(128, 0, 0),
-			cv::Scalar(64, 0, 128), cv::Scalar(64, 0, 192),
-			cv::Scalar(192, 128, 64), cv::Scalar(192, 192, 128),
-			cv::Scalar(64, 64, 128), cv::Scalar(128, 0, 192),
-			cv::Scalar(192, 0, 64), cv::Scalar(128, 128, 64),
-			cv::Scalar(192, 0, 192), cv::Scalar(128, 64, 64),
-			cv::Scalar(64, 192, 128), cv::Scalar(64, 64, 0),
-			cv::Scalar(128, 64, 128), cv::Scalar(128, 128, 192),
-			cv::Scalar(0, 0, 192), cv::Scalar(192, 128, 128),
-			cv::Scalar(128, 128, 128), cv::Scalar(64, 128, 192),
-			cv::Scalar(0, 0, 64), cv::Scalar(0, 64, 64),
-			cv::Scalar(192, 64, 128), cv::Scalar(128, 128, 0),
-			cv::Scalar(192, 128, 192), cv::Scalar(64, 0, 64),
-			cv::Scalar(192, 192, 0), cv::Scalar(0, 0, 0),
-			cv::Scalar(64, 192, 0)
+		std::vector<cv::Vec3b> colorTab = {
+			cv::Vec3b(64, 128, 64),
+			cv::Vec3b(192, 0, 128), cv::Vec3b(0, 128, 192),
+			cv::Vec3b(0, 128, 64), cv::Vec3b(128, 0, 0),
+			cv::Vec3b(64, 0, 128), cv::Vec3b(64, 0, 192),
+			cv::Vec3b(192, 128, 64), cv::Vec3b(192, 192, 128),
+			cv::Vec3b(64, 64, 128), cv::Vec3b(128, 0, 192),
+			cv::Vec3b(192, 0, 64), cv::Vec3b(128, 128, 64),
+			cv::Vec3b(192, 0, 192), cv::Vec3b(128, 64, 64),
+			cv::Vec3b(64, 192, 128), cv::Vec3b(64, 64, 0),
+			cv::Vec3b(128, 64, 128), cv::Vec3b(128, 128, 192),
+			cv::Vec3b(0, 0, 192), cv::Vec3b(192, 128, 128),
+			cv::Vec3b(128, 128, 128), cv::Vec3b(64, 128, 192),
+			cv::Vec3b(0, 0, 64), cv::Vec3b(0, 64, 64),
+			cv::Vec3b(192, 64, 128), cv::Vec3b(128, 128, 0),
+			cv::Vec3b(192, 128, 192), cv::Vec3b(64, 0, 64),
+			cv::Vec3b(192, 192, 0), cv::Vec3b(0, 0, 0),
+			cv::Vec3b(64, 192, 0)
 		};
 
 		//std::cout << colorTab.size() << std::endl;
@@ -190,14 +192,15 @@ namespace tf_model
 				//output.at<cv::Vec3b>(i, j) = colorTab[index];
 				//output.at<cv::Vec3b>(i, j)[1] = colorTab[index][1];
 				//output.at<cv::Vec3b>(i, j)[2] = colorTab[index][2];
-				data[3 * j] = colorTab[index].val[0];
-				data[3 * j + 1] = colorTab[index].val[1];
-				data[3 * j + 2] = colorTab[index].val[2];
+				//data[3 * j] = colorTab[index].val[0];
+				//data[3 * j + 1] = colorTab[index].val[1];
+				//data[3 * j + 2] = colorTab[index].val[2];
+				output.at<cv::Vec3b>(i, j) = colorTab[index];
 			}
 		}
 		//std::cout << output.at<cv::Vec3b>(511, 511) << std::endl;
-		//cv::cvtColor(output, output, cv::COLOR_RGB2BGR);
-		cv::imwrite("color.png", output);
+		cv::cvtColor(output, output, cv::COLOR_RGB2BGR);
+		//cv::imwrite("color.png", output);
 	}
 
 	SegmentationModelLoader::SegmentationModelLoader()
@@ -222,14 +225,40 @@ namespace tf_model
 			return CYAL_TF_SESSION_RUN_ERROR;
 		}
 
-		std::cout << "Output tensor size: " << temps.size() << std::endl;
-		for (std::size_t i = 0; i < temps.size(); i++)
-		{
-			std::cout << "=========================" << std::endl;
-			std::cout << temps[i].DebugString() << std::endl;
-			std::cout << "=========================" << std::endl;
-		}
-		std::cout << std::endl;
+		//std::cout << "Output tensor size: " << temps.size() << std::endl;
+		//for (std::size_t i = 0; i < temps.size(); i++)
+		//{
+		//	std::cout << "=========================" << std::endl;
+		//	std::cout << temps[i].DebugString() << std::endl;
+		//	std::cout << "=========================" << std::endl;
+		//}
+		
+		//tensorflow::Tensor t = temps[0];
+		//auto tmap = t.tensor<float, 4>();
+		//int outputHeight = t.shape().dim_size(1);
+		//int outputWidth = t.shape().dim_size(2);
+		//int channels = t.shape().dim_size(3);
+		//int output_class_id = -1;
+		//double output_prob = 0.0;
+		//cv::Mat output(cv::Size(outputHeight, outputWidth), CV_8UC1);
+		//for (int row = 0; row < outputHeight; ++row)
+		//{
+		//	for (int col = 0; col < outputWidth; ++col)
+		//	{
+		//		output_class_id = -1;
+		//		output_prob = 0.0;
+		//		for (int c = 0; c < channels; ++c)
+		//		{
+		//			if (tmap(0, row, col, c) >= output_prob)
+		//			{
+		//				output_class_id = c;
+		//				output_prob = tmap(0, row, col, c);
+		//			}
+		//			output.at<uchar>(row, col) = output_class_id;
+		//		}
+		//	}
+		//}
+		//cv::imwrite("temp.jpg", output);
 
 		auto root = tensorflow::Scope::NewRootScope();
 		auto dim = tensorflow::ops::Const(root, -1);
@@ -262,13 +291,27 @@ namespace tf_model
 			std::cout << status.ToString() << std::endl;
 			return CYAL_TF_SESSION_RUN_ERROR;
 		}
-		for (std::size_t i = 0; i < outputs.size(); i++)
-		{
-			std::cout << "=========================" << std::endl;
-			std::cout << outputs[i].DebugString() << std::endl;
-			std::cout << "=========================" << std::endl;
-		}
-		std::cout << std::endl;
+		//for (std::size_t i = 0; i < outputs.size(); i++)
+		//{
+		//	std::cout << "=========================" << std::endl;
+		//	std::cout << outputs[i].DebugString() << std::endl;
+		//	std::cout << "=========================" << std::endl;
+		//}
+		//std::cout << std::endl;
+
+		//tensorflow::Tensor t = outputs[0];
+		//auto tmap = t.tensor<tensorflow::int32, 3>();
+		//int outputHeight = t.shape().dim_size(1);
+		//int outputWidth = t.shape().dim_size(2);
+		//cv::Mat output(cv::Size(outputHeight, outputWidth), CV_8UC1);
+		//for (int row = 0; row < outputHeight; ++row)
+		//{
+		//	for (int col = 0; col < outputWidth; ++col)
+		//	{
+		//		output.at<uchar>(row, col) = tmap(0, row, col);
+		//	}
+		//}
+		//cv::imwrite("temp2.jpg", output);
 
 		return CYAL_SUCCESS;
 	}
